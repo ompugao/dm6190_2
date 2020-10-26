@@ -40,6 +40,9 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             print(loss_dict_reduced)
+            print("dive into ipython")
+            from IPython.terminal import embed; ipshell=embed.InteractiveShellEmbed(config=embed.load_default_config())(local_ns=locals())
+
             sys.exit(1)
 
         optimizer.zero_grad()
