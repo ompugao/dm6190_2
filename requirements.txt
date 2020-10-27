@@ -1,0 +1,14 @@
+ipython
+numpy
+matplotlib
+torch
+torchvision
+albumentations>=0.4.6
+pandas
+scikit-image
+tensorboard
+scikit-learn
+git+https://github.com/qubvel/segmentation_models.pytorch.git@a3cc9ac 
+hydra
+catalyst
+pycocotools
