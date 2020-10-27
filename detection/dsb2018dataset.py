@@ -20,7 +20,7 @@ class DSB2018TrainDataset(VisionDataset):
         #image_id = int(parentpath.name, 16)
         image_id = idx
         imgpath = parentpath / 'images' / (parentpath.name + '.png')
-        print(str(imgpath))
+        #print(str(imgpath))
         img = np.array(Image.open(imgpath).convert("RGB"))
 
         masks = []
@@ -37,6 +37,7 @@ class DSB2018TrainDataset(VisionDataset):
         # get bounding box coordinates for each mask
         num_objs = len(masks)
         boxes = []
+        area = []
         for i in range(num_objs):
             #pos = np.where(masks[i][1])
             pos = np.where(masks[i])
@@ -45,17 +46,13 @@ class DSB2018TrainDataset(VisionDataset):
             ymin = np.min(pos[0])
             ymax = np.max(pos[0])
             boxes.append([xmin, ymin, xmax, ymax])
+            area.append(np.count_nonzero(masks[i]==1))
         boxes = np.array(boxes, dtype=np.float64)
 
         # there is only one class
         #labels = torch.ones((num_objs,), dtype=torch.int64)
         labels = np.ones((num_objs,), dtype=np.int64)
 
-        def compute_area(boxes):
-            # TODO compute it based on mask
-            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-            return area
-        area = compute_area(boxes)
         # suppose all instances are not crowd
         # -- iscrowd (UInt8Tensor[N]): instances with iscrowd=True will be ignored during evaluation.
         iscrowd = torch.zeros((num_objs,), dtype=torch.int64)
@@ -70,7 +67,7 @@ class DSB2018TrainDataset(VisionDataset):
             img = img.float()
             masks = aug['masks']
             boxes = aug['bboxes']
-            area = compute_area(np.array(boxes))
+            area = [np.count_nonzero(mask == 1) for mask in np.array(masks)]
 
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         masks = torch.as_tensor(masks, dtype=torch.uint8)
