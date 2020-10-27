@@ -1,0 +1,26 @@
+train_data_path: ../data-science-bowl-2018/stage1_train/
+test_data_path: ../data-science-bowl-2018/stage1_test/
+dataset: DSB2018
+model: maskrcnn_resnet50_fpn
+device: cuda
+batch_size: 2 # images per gpu, the total batch size is $NGPU x batch_size
+epochs: 26
+workers: 4 #num of workers
+lr: 0.02 # initial learning rate, 0.02 is the default value for training on 8 gpus and 2 images_per_gpu
+momentum: 0.9
+weight_decay: 1e-4
+lr_step_size: 8 # decrease lr every step-size epochs
+lr_steps: [16, 22] # decrease lr every step-size epochs
+lr_gamma: 0.1 # decrease lr by a factor of lr-gamma
+print_freq: 20
+output_dir: .
+resume: '' #checkpoint
+start_epoch: 0
+aspect_ratio_group_factor: 3
+test_only: false
+pretrained: true
+world_size: 1 # number of devent_type))
+dist_url: 'env://'
+
+
+
