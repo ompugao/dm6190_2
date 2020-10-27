@@ -105,9 +105,10 @@ def _compute_aspect_ratios_slow(dataset, indices=None):
     sampler = SubsetSampler(indices)
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=1, sampler=sampler,
-        num_workers=14,  # you might want to increase it for faster processing
+        num_workers=50,  # you might want to increase it for faster processing
         collate_fn=lambda x: x[0])
     aspect_ratios = []
+
     with tqdm(total=len(dataset)) as pbar:
         for _i, (img, _) in enumerate(data_loader):
             pbar.update(1)

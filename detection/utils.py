@@ -1,7 +1,10 @@
+from __future__ import print_function
+
 from collections import defaultdict, deque
 import datetime
 import pickle
 import time
+import logging
 
 import torch
 import torch.distributed as dist
@@ -322,3 +325,18 @@ def init_distributed_mode(args):
                                          world_size=args.world_size, rank=args.rank)
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
+
+
+class LogFile(object):
+    """File-like object to log text using the `logging` module."""
+
+    def __init__(self, name=None):
+        self.logger = logging.getLogger(name)
+
+    def write(self, msg, level=logging.INFO):
+        if msg != "\n":
+            self.logger.log(level, msg)
+
+    def flush(self):
+        for handler in self.logger.handlers:
+            handler.flush()
