@@ -86,7 +86,7 @@ def get_dataset(name, image_set, transform, data_path):
 #     return T.Compose(transforms)
 
 def get_transform(train, augmentation_ver=None):
-    if augmentation_ver is None:
+    if augmentation_ver is None or augmentation_ver == 0:
         data_transforms = albumentations.Compose([
             albumentations.Flip(),
             #albumentations.RandomBrightness(0.2),
