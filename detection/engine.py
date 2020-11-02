@@ -28,7 +28,12 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq, lr
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        loss_dict = model(images, targets)
+        try:
+            loss_dict = model(images, targets)
+        except ValueError as e:
+            print("Invalid Value is given, skip this")
+            print(e)
+            continue
 
         losses = sum(loss for loss in loss_dict.values())
 

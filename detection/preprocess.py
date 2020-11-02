@@ -18,7 +18,7 @@ def get_domimant_colors(img, top_colors=2):
     return clt.cluster_centers_, None #hist
 
 class ImageClassIdentifier(object):
-    def __init__(self, kmeans_pkl='../kmeans.pkl'):
+    def __init__(self, kmeans_pkl='./kmeans.pkl'):
         with open(kmeans_pkl, 'rb') as f:
             self.kmeans = pickle.load(f)
 
@@ -29,7 +29,7 @@ class ImageClassIdentifier(object):
         return predicted_class
 
 class ImagePreProcessor1(object):
-    def __init__(self, kmeans_pkl='../kmeans.pkl'):
+    def __init__(self, kmeans_pkl='./kmeans.pkl'):
         self.identifier = ImageClassIdentifier(kmeans_pkl)
 
     def __call__(self, image, img_id):
@@ -37,4 +37,4 @@ class ImagePreProcessor1(object):
         if predicted_class == 0:
             img_eq = exposure.equalize_adapthist(np.array(image))
             return img_eq
-        return img
+        return image

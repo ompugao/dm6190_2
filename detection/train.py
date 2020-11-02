@@ -44,10 +44,11 @@ from utils import LogFile
 import transforms as T
 import albumentations
 from albumentations.pytorch.transforms import ToTensorV2
+import numpy as np
 
 from dsb_dataset import DSB
 import preprocess
-from albumentations_transforms import IfThen
+from albumentations_transforms import IfThen, IfThenElse
 
 torch.random.manual_seed(0)
 
@@ -85,7 +86,7 @@ def get_dataset(name, image_set, transform, data_path):
 #         transforms.append(T.RandomHorizontalFlip(0.5))
 #     return T.Compose(transforms)
 
-def get_transform(train, augmentation_ver=None):
+def get_transform(train, augmentation_ver=None, imageclassidentifier=None):
     if augmentation_ver is None or augmentation_ver == 0:
         data_transforms = albumentations.Compose([
             albumentations.Flip(),
@@ -94,17 +95,23 @@ def get_transform(train, augmentation_ver=None):
             #ToTensorV2()
             ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
     elif augmentation_ver == 1:
-        identifier = preproces.ImageClassIdentifier()
+        if imageclassidentifier is None:
+            imageclassidentifier = preprocess.ImageClassIdentifier()
+
         def ifpred(**kwargs):
             img = kwargs['image']
-            predicted_class = identifier.detect(np.array(img))
+            predicted_class = imageclassidentifier.detect(np.array(img))
             if predicted_class == 2:
                 return True
             return False
 
         data_transforms = albumentations.Compose([
-            IfThen(ifpred, albumentations.Compose([
-                albumentations.RandomSizedCrop((128, 1024), 1024, 1024)
+            IfThenElse(ifpred, albumentations.Compose([
+                    albumentations.RandomSizedCrop((256, 1024), 1024, 1024)
+                    #albumentations.RandomSizedBBoxSafeCrop(height=1024, width=1024)
+                ]),
+                albumentations.Compose([
+                    # do nothing
                 ])),
             albumentations.Flip(),
             albumentations.VerticalFlip(),
@@ -156,7 +163,7 @@ def main(args):
         dataset, dataset_test, num_classes = load_dsb_dataset(
                                     args.data_path,
                                     args.imageset,
-                                    get_transform(train=True, augmentation_ver=arg.augmentation),
+                                    get_transform(train=True, augmentation_ver=args.augmentation),
                                     args.image_preprocessing)
 
     print("Creating data loaders")
@@ -165,7 +172,8 @@ def main(args):
         test_sampler = torch.utils.data.distributed.DistributedSampler(dataset_test)
     elif args.dataset == "dsb" and args.weighted_sampling:
         print("computing weights for training...")
-        weights = dataset.compute_weights()
+        ici = preprocess.ImageClassIdentifier()
+        weights = dataset.compute_weights(ici)
         train_sampler = torch.utils.data.WeightedRandomSampler(weights, len(dataset), replacement=True)
         test_sampler = torch.utils.data.SequentialSampler(dataset_test)
     else:
@@ -217,7 +225,6 @@ def main(args):
 
     coco_api = load_coco_api(args.cocoapi) if args.cocoapi else None
 
-    return
     if args.test_only:
         evaluate(model, data_loader_test, device=device, coco_api=coco_api)
         return
