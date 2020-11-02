@@ -13,7 +13,7 @@ from torchvision.transforms import functional as F
 class DSB(Dataset):
 
     def __init__(self, root_path="/home/jake/data/data-science-bowl-2018",
-                 image_set="stage1_train", transforms=None):
+                 image_set="stage1_train", transforms=None, preprocessfn=None):
         super(DSB, self).__init__()
         self.root = root_path
         self.image_set = image_set
@@ -23,6 +23,7 @@ class DSB(Dataset):
         self.img_ids = [f for f in sorted(listdir(self.path))]
 
         self.transforms = transforms
+        self.preprocessfn = preprocessfn
 
     def get_height_and_width(self, index):
         image_id = self.img_ids[index]
@@ -38,6 +39,28 @@ class DSB(Dataset):
             return
         return props.bbox
 
+    def get_raw_image(self, index):
+        image_id = self.img_ids[index]
+        img = Image.open(path.join(self.path, image_id, "images", f"{image_id}.png")).convert("RGB")
+        return img
+
+    def compute_weights(self, image_class_identifier):
+        klasses = np.zeros(len(self.img_ids))
+        for i, image_id in enumerate(self.img_ids):
+            img = np.array(Image.open(path.join(self.path, image_id, "images", f"{image_id}.png")).convert("RGB"))
+            klasses[i] = image_class_identifier.detect(img)
+        klasses = klasses.astype(np.int8)
+        hist = []
+        for i in np.unique(klasses):
+            hist.append(len(klasses[klasses == i]))
+        #np.histogram(klasses, bins=len(np.unique(klasses)))
+        hist = np.array(hist)/np.sum(hist)
+        weight = 1/hist
+        weights = np.zeros(len(self.img_ids))
+        for i, kls in enumerate(klasses):
+            weights[i] = weight[kls]
+        return weights
+
     def __len__(self):
         return len(self.img_ids)
 
@@ -45,6 +68,10 @@ class DSB(Dataset):
         image_id = self.img_ids[index]
 
         img = Image.open(path.join(self.path, image_id, "images", f"{image_id}.png")).convert("RGB")
+        img = np.array(img)
+
+        if self.preprocessfn is not None:
+            img = self.preprocessfn(img, image_id)
 
         boxes = []
         labels = []
@@ -99,7 +126,7 @@ class DSB(Dataset):
             "image_id": torch.tensor([index]),
             "area": torch.tensor(area),
             "iscrowd": torch.tensor(is_crowd)
-        }#, dtype=torch.uint64),
+        }
 
         # img, target = self.transforms(img, target)
 
@@ -114,14 +141,16 @@ if __name__ == '__main__':
     import albumentations
     from albumentations.pytorch.transforms import ToTensorV2
     data_transforms = albumentations.Compose([
-        #albumentations.Flip(),
+        albumentations.Flip(),
         #albumentations.RandomBrightness(0.2),
-        #albumentations.ShiftScaleRotate(rotate_limit=90, scale_limit=0.10),
+        albumentations.ShiftScaleRotate(rotate_limit=90, scale_limit=0.10),
         #albumentations.Normalize(),
         #albumentations.Resize(512, 512),
         #ToTensorV2()
         ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
     #self = DSB('/home/leus/3rdparty/github.com/ompugao/dm6190/2_segmentationreview/data-science-bowl-2018/', image_set="stage1_train", transforms=data_transforms)
-    self = DSB('/home/leus/3rdparty/github.com/ompugao/dm6190/2_segmentationreview/data-science-bowl-2018/', image_set="stage1_train")
+    import preprocess
+    preprocessfn = preprocess.ImagePreProcessor1('./kmeans.pkl')
+    self = DSB('/home/leus/3rdparty/github.com/ompugao/dm6190/2_segmentationreview/data-science-bowl-2018/', image_set="stage1_train", transforms=data_transforms, preprocessfn=preprocessfn)
     from IPython.terminal import embed; ipshell=embed.InteractiveShellEmbed(config=embed.load_default_config())(local_ns=locals())
 

@@ -46,13 +46,18 @@ import albumentations
 from albumentations.pytorch.transforms import ToTensorV2
 
 from dsb_dataset import DSB
+import preprocess
+from albumentations_transforms import IfThen
 
 torch.random.manual_seed(0)
 
 
-def load_dsb_dataset(root_path, image_set, transforms, val_percent=0.15):
+def load_dsb_dataset(root_path, image_set, transforms, preprocess_ver, val_percent=0.15):
+    preprocessfn = None
+    if preprocess_ver == 1:
+        preprocessfn = preprocess.ImagePreProcessor1()
 
-    dataset = DSB(root_path, image_set, transforms)
+    dataset = DSB(root_path, image_set, transforms, preprocessfn)
 
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
@@ -80,13 +85,33 @@ def get_dataset(name, image_set, transform, data_path):
 #         transforms.append(T.RandomHorizontalFlip(0.5))
 #     return T.Compose(transforms)
 
-def get_transform(train):
-    data_transforms = albumentations.Compose([
-        albumentations.Flip(),
-        albumentations.RandomBrightness(0.2),
-        #albumentations.ShiftScaleRotate(rotate_limit=90, scale_limit=0.10),
-        #ToTensorV2()
-        ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
+def get_transform(train, augmentation_ver=None):
+    if augmentation_ver is None:
+        data_transforms = albumentations.Compose([
+            albumentations.Flip(),
+            #albumentations.RandomBrightness(0.2),
+            albumentations.ShiftScaleRotate(rotate_limit=90, scale_limit=0.10),
+            #ToTensorV2()
+            ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
+    elif augmentation_ver == 1:
+        identifier = preproces.ImageClassIdentifier()
+        def ifpred(**kwargs):
+            img = kwargs['image']
+            predicted_class = identifier.detect(np.array(img))
+            if predicted_class == 2:
+                return True
+            return False
+
+        data_transforms = albumentations.Compose([
+            IfThen(ifpred, albumentations.Compose([
+                albumentations.RandomSizedCrop((128, 1024), 1024, 1024)
+                ])),
+            albumentations.Flip(),
+            albumentations.VerticalFlip(),
+            albumentations.RandomRotate90(p=0.5),
+            albumentations.ShiftScaleRotate(rotate_limit=15, scale_limit=0.10),
+            #ToTensorV2()
+            ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
     return data_transforms
 
 def load_coco_api(coco_api_path):
@@ -123,18 +148,24 @@ def main(args):
     print("Loading data")
 
     if args.dataset != "dsb":
-        dataset, num_classes = get_dataset(args.dataset, "train", get_transform(train=True), args.data_path)
-        dataset_test, _ = get_dataset(args.dataset, "val", get_transform(train=False), args.data_path)
+        dataset, num_classes = get_dataset(args.dataset, "train", get_transform(train=True, augmentation_ver=args.augmentation), args.data_path)
+        dataset_test, _ = get_dataset(args.dataset, "val", get_transform(train=False, augmentation_ver=args.augmentation), args.data_path)
     else:
         dataset, dataset_test, num_classes = load_dsb_dataset(
                                     args.data_path,
                                     args.imageset,
-                                    None)# get_transform(train=True))
+                                    get_transform(train=True, augmentation_ver=arg.augmentation),
+                                    args.image_preprocessing)
 
     print("Creating data loaders")
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         test_sampler = torch.utils.data.distributed.DistributedSampler(dataset_test)
+    elif args.dataset == "dsb" and args.weighted_sampling:
+        print("computing weights for training...")
+        weights = dataset.compute_weights()
+        train_sampler = torch.utils.data.WeightedRandomSampler(weights, len(dataset), replacement=True)
+        test_sampler = torch.utils.data.SequentialSampler(dataset_test)
     else:
         train_sampler = torch.utils.data.RandomSampler(dataset)
         test_sampler = torch.utils.data.SequentialSampler(dataset_test)
@@ -184,6 +215,7 @@ def main(args):
 
     coco_api = load_coco_api(args.cocoapi) if args.cocoapi else None
 
+    return
     if args.test_only:
         evaluate(model, data_loader_test, device=device, coco_api=coco_api)
         return
@@ -221,6 +253,9 @@ if __name__ == "__main__":
     parser.add_argument('--data-path', default='/datasets01/COCO/022719/', help='dataset')
     parser.add_argument('--dataset', default='coco', help='dataset')
     parser.add_argument('--imageset', default='stage1_train', help='imageset')
+    parser.add_argument('--image-preprocessing', default=None, help='image preprocessing version', type=int)
+    parser.add_argument('--augmentation', default=0, help='data augmentation version', type=int)
+    parser.add_argument("--weighted-sampling", help="Use weighted sampler for training", action="store_true")
     parser.add_argument('--cocoapi', help='Path to pickled COCO API for test set')
     parser.add_argument('--model', default='maskrcnn_resnet50_fpn', help='model')
     parser.add_argument('--device', default='cuda', help='device')
