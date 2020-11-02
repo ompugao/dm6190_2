@@ -119,9 +119,9 @@ def load_coco_api(coco_api_path):
         return pickle.load(f)
 
 def create_model(modelname, pretrained, num_classes):
-    model = torchvision.models.detection.__dict__[modelname](pretrained=pretrained)
-
     if modelname == 'maskrcnn_resnet50_fpn':
+        model = torchvision.models.detection.__dict__[modelname](pretrained=pretrained)
+
         # get number of input features for the classifier
         in_features = model.roi_heads.box_predictor.cls_score.in_features
         # replace the pre-trained head with a new one
@@ -134,6 +134,8 @@ def create_model(modelname, pretrained, num_classes):
         model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask,
                                                            hidden_layer,
                                                            num_classes)
+    elif modelname == 'retinanet_resnet50_fpn':
+        model = torchvision.models.detection.__dict__[modelname](num_classes=num_classes, pretrained_backbone=True)
 
     return model
 
