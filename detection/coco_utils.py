@@ -1,5 +1,6 @@
 import copy
 import os
+import numpy as np
 from PIL import Image
 
 from tqdm import tqdm
@@ -11,6 +12,7 @@ import torchvision
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 
+from torchvision.transforms import functional as F
 import transforms as T
 
 
@@ -213,14 +215,32 @@ class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self._transforms = transforms
+        self.coco_poly_to_mask = ConvertCocoPolysToMask()
 
     def __getitem__(self, idx):
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
         target = dict(image_id=image_id, annotations=target)
+        img, target = self.coco_poly_to_mask(img, target)
 
         if self._transforms is not None:
-            img, target = self._transforms(img, target)
+            #img, target = self._transforms(img, target)
+            aug = self._transforms(image=np.array(img), masks=target['masks'].numpy(), bboxes=target['boxes'].numpy(), class_labels=target["labels"].numpy())
+            if type(aug['image']) in [np.ndarray, Image]:
+                img = F.to_tensor(aug['image'])
+            img = img.float()
+            target['masks'] = torch.tensor(aug['masks'])
+            target['boxes'] = torch.tensor(aug['bboxes'])
+            target['labels'] = torch.tensor(aug['class_labels'])
+            target['area'] = torch.tensor([np.count_nonzero(mask == 1) for mask in np.array(aug['masks'])])
+        else:
+            img = F.to_tensor(img).float()
+            for k, v in target.iteritems():
+                if k == "masks":
+                    target[k] = torch.tensor(v, dtype=torch.uint8)
+                    continue
+                target[k] = torch.tensor(v)
+
         return img, target
 
 
@@ -232,11 +252,11 @@ def get_coco(root, image_set, transforms, mode='instances'):
         # "train": ("val2017", os.path.join("annotations", anno_file_template.format(mode, "val")))
     }
 
-    t = [ConvertCocoPolysToMask()]
+    #t = [ConvertCocoPolysToMask()]
 
-    if transforms is not None:
-        t.append(transforms)
-    transforms = T.Compose(t)
+    # if transforms is not None:
+    #     t.append(transforms)
+    # transforms = T.Compose(t)
 
     img_folder, ann_file = PATHS[image_set]
     img_folder = os.path.join(root, img_folder)
@@ -254,3 +274,16 @@ def get_coco(root, image_set, transforms, mode='instances'):
 
 def get_coco_kp(root, image_set, transforms):
     return get_coco(root, image_set, transforms, mode="person_keypoints")
+
+if __name__ == '__main__':
+    import albumentations
+    data_transforms = albumentations.Compose([
+        albumentations.Flip(),
+        albumentations.RandomBrightness(0.2),
+        #albumentations.ShiftScaleRotate(rotate_limit=90, scale_limit=0.10),
+        #ToTensorV2()
+        ], bbox_params=albumentations.BboxParams(format='pascal_voc', label_fields=['class_labels'])) # min_visibility=0.2
+
+    dataset = get_coco("/data/coco_dataset/coco/", "train", data_transforms)
+    from IPython.terminal import embed; ipshell=embed.InteractiveShellEmbed(config=embed.load_default_config())(local_ns=locals())
+
