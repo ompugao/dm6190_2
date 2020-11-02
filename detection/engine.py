@@ -118,4 +118,4 @@ def evaluate(model, data_loader, device, coco_evaluator=None, coco_api=None):
     coco_evaluator.accumulate()
     coco_evaluator.summarize()
     torch.set_num_threads(n_threads)
-    return coco_evaluator
+    return coco_evaluator, coco_api

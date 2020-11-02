@@ -238,7 +238,7 @@ def main(args):
                 os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
 
         # Evaluate after each epoch
-        evaluate(model, data_loader_test, device=device, coco_api=coco_api)
+        coco_evaluator, coco_api = evaluate(model, data_loader_test, device=device, coco_api=coco_api)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
