@@ -125,9 +125,9 @@ def load_coco_api(coco_api_path):
     with open(coco_api_path, "rb") as f:
         return pickle.load(f)
 
-def create_model(modelname, pretrained, num_classes):
+def create_model(modelname, pretrained, num_classes, trainable_backbone_layers=3):
     if modelname == 'maskrcnn_resnet50_fpn':
-        model = torchvision.models.detection.__dict__[modelname](pretrained=pretrained)
+        model = torchvision.models.detection.__dict__[modelname](pretrained=pretrained, trainable_backbone_layers=trainable_backbone_layers)
 
         # get number of input features for the classifier
         in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -199,7 +199,7 @@ def main(args):
     print("Creating model")
     # model = torchvision.models.detection.__dict__[args.model](num_classes=num_classes,
                                                               # pretrained=args.pretrained)
-    model = create_model(args.model, args.pretrained, num_classes)
+    model = create_model(args.model, args.pretrained, num_classes, args.trainable_backbone_layers)
     model.to(device)
 
     model_without_ddp = model
@@ -287,6 +287,7 @@ if __name__ == "__main__":
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)
+    parser.add_argument('--trainable-backbone-layers', default=3, type=int)
     parser.add_argument(
         "--test-only",
         dest="test_only",
